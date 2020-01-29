@@ -2048,14 +2048,12 @@ inline int binlog_write_by_xid(THD *thd, XID *xid, char *buf,
 static int binlog_commit_by_xid(handlerton *hton, XID *xid)
 {
   THD *thd= current_thd;
-  // const char query[]= "XA COMMIT ";
-  // const size_t q_len= sizeof(query) - 1; // do not count trailing 0
-  // char buf[q_len + ser_buf_size];
+
   if (thd->transaction.xid_state.is_binlogged())
     (void) thd->binlog_setup_trx_data();
 
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT);
-  //return binlog_write_by_xid(thd, xid, buf, query, q_len);
+
   return binlog_commit(hton, thd, TRUE);
 }
 
@@ -2063,15 +2061,12 @@ static int binlog_commit_by_xid(handlerton *hton, XID *xid)
 static int binlog_rollback_by_xid(handlerton *hton, XID *xid)
 {
   THD *thd= current_thd;
-  // const char query[]= "XA ROLLBACK ";
-  // const size_t q_len= sizeof(query) - 1; // do not count trailing 0
-  // char buf[q_len + ser_buf_size];
+
   if (thd->transaction.xid_state.is_binlogged())
     (void) thd->binlog_setup_trx_data();
 
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK);
 
-  //return binlog_write_by_xid(thd, xid, buf, query, q_len);
   return binlog_rollback(hton, thd, TRUE);
 }
 
@@ -2133,8 +2128,6 @@ static int binlog_commit_flush_xa_prepare(THD *thd, bool all,
     binlog_cache_data *cache_data;
     IO_CACHE *file;
 
-    // TODO binlog_query
-
     memcpy(buf, query, q_len);
     buflen= q_len +
       strlen(static_cast<event_xid_t*>(xid)->serialize(buf + q_len));
@@ -2150,8 +2143,8 @@ static int binlog_commit_flush_xa_prepare(THD *thd, bool all,
   cache_mngr->using_xa= FALSE;
   XA_prepare_log_event end_evt(thd, xid, FALSE);
   /*
-    Avoids an integrity issue in
-    sql_log_bin OFF (at XA prepare) -> ON (at XA commit)
+    Memorize the fact of prepare-logging to recall at commit
+    possibly from another session.
   */
   if (thd->variables.option_bits & OPTION_BIN_LOG)
     thd->transaction.xid_state.set_binlogged();
@@ -2236,7 +2229,6 @@ static int binlog_commit(handlerton *hton, THD *thd, bool all)
   DBUG_RETURN(error);
 }
 
-
 /**
   This function is called when a transaction or a statement is rolled back.
 
@@ -2250,6 +2242,7 @@ static int binlog_commit(handlerton *hton, THD *thd, bool all)
 static int binlog_rollback(handlerton *hton, THD *thd, bool all)
 {
   DBUG_ENTER("binlog_rollback");
+  // it is important to mark already errored explicit XA
   int error= !thd->transaction.xid_state.is_explicit_XA() ? 0: thd->is_error();
   binlog_cache_mngr *const cache_mngr=
     (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);

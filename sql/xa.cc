@@ -318,6 +318,9 @@ bool trans_xa_start(THD *thd)
     thd->transaction.xid_state.er_xaer_rmfail();
   else if (thd->locked_tables_mode || thd->in_active_multi_stmt_transaction())
     my_error(ER_XAER_OUTSIDE, MYF(0));
+  else if ((thd->variables.option_bits & OPTION_BIN_LOG) &&
+           static_cast<ulong>(thd->lex->xid->formatID) > UINT_MAX32 - 1)
+    my_error(ER_XAER_NOTA, MYF(0));
   else if (!trans_begin(thd))
   {
     if (xid_cache_insert(thd, &thd->transaction.xid_state, thd->lex->xid))
