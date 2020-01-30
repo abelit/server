@@ -1051,4 +1051,5 @@ d
 2019-12-31 23:59:59.9
 select * from t partition (p2);
 d
+set time_zone=default;
 drop table t;

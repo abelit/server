@@ -1043,4 +1043,5 @@ insert into t values (from_unixtime(1577836799.9));
 select * from t partition (p1);
 select * from t partition (p2);
 
+set time_zone=default;
 drop table t;
